@@ -6,7 +6,7 @@ description = "Generic Substrate node implementation in Rust."
 build = "build.rs"
 edition = "2018"
 license = "GPL-3.0"
-default-run = "substrate"
+default-run = "edgeware-alternode"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/substrate/"
 
@@ -25,7 +25,7 @@ is-it-maintained-issue-resolution = { repository = "paritytech/substrate" }
 is-it-maintained-open-issues = { repository = "paritytech/substrate" }
 
 [[bin]]
-name = "substrate"
+name = "edgeware-alternode"
 path = "bin/main.rs"
 required-features = ["cli"]
 
@@ -45,9 +45,12 @@ structopt = { version = "0.3.8", optional = true }
 tracing = "0.1.10"
 parking_lot = "0.10.0"
 
+hex = "0.3.2"
+serde_json = "1.0"
+
 # primitives
 sp-authority-discovery = { version = "2.0.0-dev",  path = "../../../primitives/authority-discovery" }
-sp-consensus-babe = { version = "0.8.0-dev", path = "../../../primitives/consensus/babe" }
+sp-consensus-aura = { version = "0.8.0-dev", path = "../../../primitives/consensus/aura" }
 grandpa-primitives = { version = "2.0.0-dev", package = "sp-finality-grandpa", path = "../../../primitives/finality-grandpa" }
 sp-core = { version = "2.0.0-dev", path = "../../../primitives/core" }
 sp-runtime = { version = "2.0.0-dev", path = "../../../primitives/runtime" }
@@ -65,7 +68,7 @@ sc-chain-spec = { version = "2.0.0-dev", path = "../../../client/chain-spec" }
 sc-consensus = { version = "0.8.0-dev", path = "../../../client/consensus/common" }
 sc-transaction-pool = { version = "2.0.0-dev", path = "../../../client/transaction-pool" }
 sc-network = { version = "0.8.0-dev", path = "../../../client/network" }
-sc-consensus-babe = { version = "0.8.0-dev", path = "../../../client/consensus/babe" }
+sc-consensus-aura = { version = "0.8.0-dev", path = "../../../client/consensus/aura" }
 grandpa = { version = "0.8.0-dev", package = "sc-finality-grandpa", path = "../../../client/finality-grandpa" }
 sc-client-db = { version = "0.8.0-dev", default-features = false, path = "../../../client/db" }
 sc-offchain = { version = "2.0.0-dev", path = "../../../client/offchain" }
@@ -88,6 +91,7 @@ pallet-im-online = { version = "2.0.0-dev", default-features = false, path = "..
 pallet-authority-discovery = { version = "2.0.0-dev", path = "../../../frame/authority-discovery" }
 pallet-staking = { version = "2.0.0-dev", path = "../../../frame/staking" }
 pallet-grandpa = { version = "2.0.0-dev", path = "../../../frame/grandpa" }
+pallet-evm = { version = "2.0.0-dev", path = "../../../frame/evm", package = "pallet-evm" }
 
 # node-specific dependencies
 node-runtime = { version = "2.0.0-dev", path = "../runtime" }
@@ -152,7 +156,7 @@ cli = [
 	"structopt",
 	"substrate-build-script-utils",
 ]
-runtime-benchmarks = [
-	"node-runtime/runtime-benchmarks",
-	"frame-benchmarking-cli",
-]
+# runtime-benchmarks = [
+# 	"node-runtime/runtime-benchmarks",
+# 	"frame-benchmarking-cli",
+# ]

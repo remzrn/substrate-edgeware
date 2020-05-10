@@ -21,7 +21,7 @@ use sc_cli::{Result, SubstrateCli};
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> &'static str {
-		"Substrate Node"
+		"Edgeware Node"
 	}
 
 	fn impl_version() -> &'static str {
@@ -45,14 +45,19 @@ impl SubstrateCli for Cli {
 	}
 
 	fn executable_name() -> &'static str {
-		"substrate"
+		"edgeware-alternode"
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		Ok(match id {
 			"dev" => Box::new(chain_spec::development_config()),
+			"multi-dev" | "multi" => Box::new(chain_spec::multi_development_config()),
 			"local" => Box::new(chain_spec::local_testnet_config()),
-			"" | "fir" | "flaming-fir" => Box::new(chain_spec::flaming_fir_config()?),
+			"testnet-conf" => Box::new(chain_spec::edgeware_testnet_config("Berlin".to_string(),"berlin_edgeware_testnet".to_string())),
+			"mainnet-conf" => Box::new(chain_spec::edgeware_mainnet_config()),
+			"edgeware-berlin" | "berlin" => Box::new(chain_spec::edgeware_berlin_official()),
+			"" | "edgeware" | "edgeware-mainnet" => Box::new(chain_spec::edgeware_mainnet_official()),
+			"fir" | "flaming-fir" => Box::new(chain_spec::flaming_fir_config()?),
 			"staging" => Box::new(chain_spec::staging_testnet_config()),
 			path => Box::new(chain_spec::ChainSpec::from_json_file(
 				std::path::PathBuf::from(path),

@@ -152,21 +152,21 @@ impl<C: SubstrateCli> Runner<C> {
 		SF: AbstractService + Unpin,
 	{
 		info!("{}", C::impl_name());
-		info!("✌️  version {}", C::impl_version());
+		info!(" T version {}", C::impl_version());
 		info!(
-			"❤️  by {}, {}-{}",
+			" H by {}, {}-{}",
 			C::author(),
 			C::copyright_start_year(),
 			Local::today().year(),
 		);
-		info!("📋 Chain specification: {}", self.config.chain_spec.name());
-		info!("🏷  Node name: {}", self.config.network.node_name);
-		info!("👤 Role: {}", self.config.display_role());
-		info!("💾 Database: {} at {}",
+		info!(" X Chain specification: {}", self.config.chain_spec.name());
+		info!("❤️  Node name: {}", self.config.network.node_name);
+		info!(" J Role: {}", self.config.display_role());
+		info!(" A Database: {} at {}",
 			self.config.database,
 			self.config.database.path().map_or_else(|| "<unknown>".to_owned(), |p| p.display().to_string())
 		);
-		info!("⛓  Native runtime: {}", runtime_version);
+		info!(" M Native runtime: {}", runtime_version);
 
 		match self.config.role {
 			Role::Light => self.run_service_until_exit(new_light),

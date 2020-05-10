@@ -20,7 +20,7 @@ use crate::keyring::*;
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use node_runtime::{
 	GenesisConfig, BalancesConfig, SessionConfig, StakingConfig, SystemConfig,
-	GrandpaConfig, IndicesConfig, ContractsConfig, SocietyConfig, WASM_BINARY,
+	GrandpaConfig, IndicesConfig, ContractsConfig, WASM_BINARY,
 	AccountId,
 };
 use node_runtime::constants::currency::*;
@@ -98,7 +98,7 @@ pub fn config_endowed(
 		pallet_contracts: Some(ContractsConfig {
 			current_schedule: Default::default(),
 		}),
-		pallet_babe: Some(Default::default()),
+		pallet_aura: Some(Default::default()),
 		pallet_grandpa: Some(GrandpaConfig {
 			authorities: vec![],
 		}),
@@ -106,16 +106,30 @@ pub fn config_endowed(
 		pallet_authority_discovery: Some(Default::default()),
 		pallet_democracy: Some(Default::default()),
 		pallet_collective_Instance1: Some(Default::default()),
-		pallet_collective_Instance2: Some(Default::default()),
-		pallet_membership_Instance1: Some(Default::default()),
+		// pallet_collective_Instance2: Some(Default::default()),
+		// pallet_membership_Instance1: Some(Default::default()),
 		pallet_elections_phragmen: Some(Default::default()),
 		pallet_sudo: Some(Default::default()),
 		pallet_treasury: Some(Default::default()),
-		pallet_society: Some(SocietyConfig {
-			members: vec![alice(), bob()],
-			pot: 0,
-			max_members: 999,
-		}),
-		pallet_vesting: Some(Default::default()),
+		// pallet_society: Some(SocietyConfig {
+		// 	members: vec![alice(), bob()],
+		// 	pot: 0,
+		// 	max_members: 999,
+		// }),
+        pallet_vesting: Some(Default::default()),
+		// signaling: Some(SignalingConfig {
+		// 	voting_length: 7 * DAYS,
+		// 	proposal_creation_bond: 100 * DOLLARS,
+		// }),
+		// treasury_reward: Some(TreasuryRewardConfig {
+		// 	current_payout: 95 * DOLLARS,
+		// 	minting_interval: One::one(),
+		// }),
+		// pallet_evm: Some(EVMConfig {
+		// 	accounts: vec![],
+        // }),
+		signaling: Some(Default::default()),
+		treasury_reward: Some(Default::default()),
+		pallet_evm: Some(Default::default()),
 	}
 }

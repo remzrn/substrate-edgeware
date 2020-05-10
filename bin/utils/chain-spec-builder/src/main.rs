@@ -97,6 +97,9 @@ fn genesis_constructor(
 		sudo_account.clone(),
 		Some(endowed_accounts.to_vec()),
 		enable_println,
+		vec![],
+		vec![],
+		vec![],
 	)
 }
 

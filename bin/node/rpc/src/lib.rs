@@ -37,11 +37,13 @@ use sp_api::ProvideRuntimeApi;
 use sp_transaction_pool::TransactionPool;
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
 use sp_consensus::SelectChain;
-use sc_keystore::KeyStorePtr;
-use sp_consensus_babe::BabeApi;
-use sc_consensus_epochs::SharedEpochChanges;
-use sc_consensus_babe::{Config, Epoch};
-use sc_consensus_babe_rpc::BabeRPCHandler;
+// use sc_keystore::KeyStorePtr;
+use sp_consensus_aura::AuraApi;
+use sp_consensus_aura::ed25519::AuthorityId as AuraId;
+// use sp_consensus_babe::BabeApi;
+// use sc_consensus_epochs::SharedEpochChanges;
+// use sc_consensus_babe::{Config, Epoch};
+// use sc_consensus_babe_rpc::BabeRPCHandler;
 use sc_finality_grandpa::{SharedVoterState, SharedAuthoritySet};
 use sc_finality_grandpa_rpc::GrandpaRpcHandler;
 
@@ -57,15 +59,15 @@ pub struct LightDeps<C, F, P> {
 	pub fetcher: Arc<F>,
 }
 
-/// Extra dependencies for BABE.
-pub struct BabeDeps {
-	/// BABE protocol config.
-	pub babe_config: Config,
-	/// BABE pending epoch changes.
-	pub shared_epoch_changes: SharedEpochChanges<Block, Epoch>,
-	/// The keystore that manages the keys of the node.
-	pub keystore: KeyStorePtr,
-}
+// /// Extra dependencies for BABE.
+// pub struct BabeDeps {
+// 	/// BABE protocol config.
+// 	pub babe_config: Config,
+// 	/// BABE pending epoch changes.
+// 	pub shared_epoch_changes: SharedEpochChanges<Block, Epoch>,
+// 	/// The keystore that manages the keys of the node.
+// 	pub keystore: KeyStorePtr,
+// }
 
 /// Extra dependencies for GRANDPA
 pub struct GrandpaDeps {
@@ -83,8 +85,8 @@ pub struct FullDeps<C, P, SC> {
 	pub pool: Arc<P>,
 	/// The SelectChain Strategy
 	pub select_chain: SC,
-	/// BABE specific dependencies.
-	pub babe: BabeDeps,
+	// /// BABE specific dependencies.
+	// pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps,
 }
@@ -99,7 +101,8 @@ pub fn create_full<C, P, M, SC>(
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
 	C::Api: pallet_contracts_rpc::ContractsRuntimeApi<Block, AccountId, Balance, BlockNumber>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
-	C::Api: BabeApi<Block>,
+	C::Api: AuraApi<Block, AuraId>,
+	// C::Api: BabeApi<Block>,
 	<C::Api as sp_api::ApiErrorExt>::Error: fmt::Debug,
 	P: TransactionPool + 'static,
 	M: jsonrpc_core::Metadata + Default,
@@ -113,15 +116,15 @@ pub fn create_full<C, P, M, SC>(
 	let FullDeps {
 		client,
 		pool,
-		select_chain,
-		babe,
+		select_chain: _,
+		// babe,
 		grandpa,
 	} = deps;
-	let BabeDeps {
-		keystore,
-		babe_config,
-		shared_epoch_changes,
-	} = babe;
+	// let BabeDeps {
+	// 	keystore,
+	// 	babe_config,
+	// 	shared_epoch_changes,
+	// } = babe;
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
@@ -139,11 +142,11 @@ pub fn create_full<C, P, M, SC>(
 	io.extend_with(
 		TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone()))
 	);
-	io.extend_with(
-		sc_consensus_babe_rpc::BabeApi::to_delegate(
-			BabeRPCHandler::new(client, shared_epoch_changes, keystore, babe_config, select_chain)
-		)
-	);
+	// io.extend_with(
+	// 	sc_consensus_babe_rpc::BabeApi::to_delegate(
+	// 		BabeRPCHandler::new(client, shared_epoch_changes, keystore, babe_config, select_chain)
+	// 	)
+	// );
 	io.extend_with(
 		sc_finality_grandpa_rpc::GrandpaApi::to_delegate(
 			GrandpaRpcHandler::new(shared_authority_set, shared_voter_state)

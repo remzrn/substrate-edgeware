@@ -29,6 +29,8 @@
 #![warn(missing_docs)]
 
 pub mod chain_spec;
+pub mod mainnet_fixtures;
+pub mod testnet_fixtures;
 
 #[macro_use]
 mod service;

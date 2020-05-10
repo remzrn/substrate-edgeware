@@ -20,7 +20,8 @@
 
 use std::sync::Arc;
 
-use sc_consensus_babe;
+use sc_consensus_aura;
+use sp_consensus_aura::ed25519::{AuthorityPair as AuraPair};
 use grandpa::{
 	self, FinalityProofProvider as GrandpaFinalityProofProvider, StorageAndProofProvider,
 };
@@ -40,7 +41,7 @@ use sc_consensus::LongestChain;
 macro_rules! new_full_start {
 	($config:expr) => {{
 		use std::sync::Arc;
-
+		use sp_consensus_aura::ed25519::AuthorityPair as AuraPair;
 		type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 		let mut import_setup = None;
 		let mut rpc_setup = None;
@@ -70,15 +71,13 @@ macro_rules! new_full_start {
 				)?;
 				let justification_import = grandpa_block_import.clone();
 
-				let (block_import, babe_link) = sc_consensus_babe::block_import(
-					sc_consensus_babe::Config::get_or_compute(&*client)?,
-					grandpa_block_import,
-					client.clone(),
-				)?;
+				let aura_block_import = sc_consensus_aura::AuraBlockImport::<_, _, _, AuraPair>::new(
+					grandpa_block_import.clone(), client.clone(),
+				);
 
-				let import_queue = sc_consensus_babe::import_queue(
-					babe_link.clone(),
-					block_import.clone(),
+				let import_queue = sc_consensus_aura::import_queue::<_, _, _, AuraPair, _>(
+					sc_consensus_aura::slot_duration(&*client)?,
+					aura_block_import,
 					Some(Box::new(justification_import)),
 					None,
 					client,
@@ -86,12 +85,12 @@ macro_rules! new_full_start {
 					spawn_task_handle,
 				)?;
 
-				import_setup = Some((block_import, grandpa_link, babe_link));
+				import_setup = Some((grandpa_block_import, grandpa_link));
 				Ok(import_queue)
 			})?
 			.with_rpc_extensions(|builder| -> std::result::Result<RpcExtension, _> {
-				let babe_link = import_setup.as_ref().map(|s| &s.2)
-					.expect("BabeLink is present for full services or set up failed; qed.");
+				// let babe_link = import_setup.as_ref().map(|s| &s.2)
+				// 	.expect("BabeLink is present for full services or set up failed; qed.");
 				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
 					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
 				let shared_authority_set = grandpa_link.shared_authority_set();
@@ -101,11 +100,11 @@ macro_rules! new_full_start {
 					pool: builder.pool(),
 					select_chain: builder.select_chain().cloned()
 						.expect("SelectChain is present for full services or set up failed; qed."),
-					babe: node_rpc::BabeDeps {
-						keystore: builder.keystore(),
-						babe_config: sc_consensus_babe::BabeLink::config(babe_link).clone(),
-						shared_epoch_changes: sc_consensus_babe::BabeLink::epoch_changes(babe_link).clone()
-					},
+					// babe: node_rpc::BabeDeps {
+					// 	keystore: builder.keystore(),
+					// 	babe_config: sc_consensus_babe::BabeLink::config(babe_link).clone(),
+					// 	shared_epoch_changes: sc_consensus_babe::BabeLink::epoch_changes(babe_link).clone()
+					// },
 					grandpa: node_rpc::GrandpaDeps {
 						shared_voter_state: shared_voter_state.clone(),
 						shared_authority_set: shared_authority_set.clone(),
@@ -152,13 +151,13 @@ macro_rules! new_full {
 			})?
 			.build()?;
 
-		let (block_import, grandpa_link, babe_link) = import_setup.take()
+		let (block_import, grandpa_link) = import_setup.take()
 			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
+			
 		let shared_voter_state = rpc_setup.take()
 			.expect("The SharedVoterState is present for Full Services or setup failed before. qed");
 
-		($with_startup_data)(&block_import, &babe_link);
+		($with_startup_data)(&block_import, &grandpa_link);
 
 		if let sc_service::config::Role::Authority { .. } = &role {
 			let proposer = sc_basic_authorship::ProposerFactory::new(
@@ -173,21 +172,22 @@ macro_rules! new_full {
 			let can_author_with =
 				sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-			let babe_config = sc_consensus_babe::BabeParams {
-				keystore: service.keystore(),
+			let aura = sc_consensus_aura::start_aura::<_, _, _, _, _, AuraPair, _, _, _>(
+				sc_consensus_aura::slot_duration(&*client)?,
 				client,
 				select_chain,
-				env: proposer,
 				block_import,
-				sync_oracle: service.network(),
-				inherent_data_providers: inherent_data_providers.clone(),
+				proposer,
+				service.network(),
+				inherent_data_providers.clone(),
 				force_authoring,
-				babe_link,
+				service.keystore(),
 				can_author_with,
-			};
-
-			let babe = sc_consensus_babe::start_babe(babe_config)?;
-			service.spawn_essential_task("babe-proposer", babe);
+			)?;
+	
+			// the AURA authoring task is considered essential, i.e. if it
+			// fails we take down the service with it.
+			service.spawn_essential_task("aura", aura);
 		}
 
 		// Spawn authority discovery module.
@@ -322,18 +322,12 @@ pub fn new_light(config: Configuration)
 			let finality_proof_request_builder =
 				finality_proof_import.create_finality_proof_request_builder();
 
-			let (babe_block_import, babe_link) = sc_consensus_babe::block_import(
-				sc_consensus_babe::Config::get_or_compute(&*client)?,
+			let import_queue = sc_consensus_aura::import_queue::<_, _, _, AuraPair, _>(
+				sc_consensus_aura::slot_duration(&*client)?,
 				grandpa_block_import,
-				client.clone(),
-			)?;
-
-			let import_queue = sc_consensus_babe::import_queue(
-				babe_link,
-				babe_block_import,
 				None,
 				Some(Box::new(finality_proof_import)),
-				client.clone(),
+				client,
 				inherent_data_providers.clone(),
 				spawn_task_handle,
 			)?;
@@ -366,297 +360,297 @@ pub fn new_light(config: Configuration)
 	Ok(service)
 }
 
-#[cfg(test)]
-mod tests {
-	use std::{sync::Arc, borrow::Cow, any::Any};
-	use sc_consensus_babe::{
-		CompatibleDigestItem, BabeIntermediate, INTERMEDIATE_KEY
-	};
-	use sc_consensus_epochs::descendent_query;
-	use sp_consensus::{
-		Environment, Proposer, BlockImportParams, BlockOrigin, ForkChoiceStrategy, BlockImport,
-		RecordProof,
-	};
-	use node_primitives::{Block, DigestItem, Signature};
-	use node_runtime::{BalancesCall, Call, UncheckedExtrinsic, Address};
-	use node_runtime::constants::{currency::CENTS, time::SLOT_DURATION};
-	use codec::{Encode, Decode};
-	use sp_core::{crypto::Pair as CryptoPair, H256};
-	use sp_runtime::{
-		generic::{BlockId, Era, Digest, SignedPayload},
-		traits::{Block as BlockT, Header as HeaderT},
-		traits::Verify,
-		OpaqueExtrinsic,
-	};
-	use sp_timestamp;
-	use sp_finality_tracker;
-	use sp_keyring::AccountKeyring;
-	use sc_service::AbstractService;
-	use crate::service::{new_full, new_light};
-	use sp_runtime::traits::IdentifyAccount;
-	use sp_transaction_pool::{MaintainedTransactionPool, ChainEvent};
+// #[cfg(test)]
+// mod tests {
+// 	use std::{sync::Arc, borrow::Cow, any::Any};
+// 	use sc_consensus_babe::{
+// 		CompatibleDigestItem, BabeIntermediate, INTERMEDIATE_KEY
+// 	};
+// 	use sc_consensus_epochs::descendent_query;
+// 	use sp_consensus::{
+// 		Environment, Proposer, BlockImportParams, BlockOrigin, ForkChoiceStrategy, BlockImport,
+// 		RecordProof,
+// 	};
+// 	use node_primitives::{Block, DigestItem, Signature};
+// 	use node_runtime::{BalancesCall, Call, UncheckedExtrinsic, Address};
+// 	use node_runtime::constants::{currency::CENTS, time::SLOT_DURATION};
+// 	use codec::{Encode, Decode};
+// 	use sp_core::{crypto::Pair as CryptoPair, H256};
+// 	use sp_runtime::{
+// 		generic::{BlockId, Era, Digest, SignedPayload},
+// 		traits::{Block as BlockT, Header as HeaderT},
+// 		traits::Verify,
+// 		OpaqueExtrinsic,
+// 	};
+// 	use sp_timestamp;
+// 	use sp_finality_tracker;
+// 	use sp_keyring::AccountKeyring;
+// 	use sc_service::AbstractService;
+// 	use crate::service::{new_full, new_light};
+// 	use sp_runtime::traits::IdentifyAccount;
+// 	use sp_transaction_pool::{MaintainedTransactionPool, ChainEvent};
 
-	type AccountPublic = <Signature as Verify>::Signer;
+// 	type AccountPublic = <Signature as Verify>::Signer;
 
-	#[cfg(feature = "rhd")]
-	fn test_sync() {
-		use sp_core::ed25519::Pair;
+// 	#[cfg(feature = "rhd")]
+// 	fn test_sync() {
+// 		use sp_core::ed25519::Pair;
 
-		use {service_test, Factory};
-		use sp_consensus::{BlockImportParams, BlockOrigin};
+// 		use {service_test, Factory};
+// 		use sp_consensus::{BlockImportParams, BlockOrigin};
 
-		let alice: Arc<ed25519::Pair> = Arc::new(Keyring::Alice.into());
-		let bob: Arc<ed25519::Pair> = Arc::new(Keyring::Bob.into());
-		let validators = vec![alice.public().0.into(), bob.public().0.into()];
-		let keys: Vec<&ed25519::Pair> = vec![&*alice, &*bob];
-		let dummy_runtime = ::tokio::runtime::Runtime::new().unwrap();
-		let block_factory = |service: &<Factory as service::ServiceFactory>::FullService| {
-			let block_id = BlockId::number(service.client().chain_info().best_number);
-			let parent_header = service.client().best_header(&block_id)
-				.expect("db error")
-				.expect("best block should exist");
+// 		let alice: Arc<ed25519::Pair> = Arc::new(Keyring::Alice.into());
+// 		let bob: Arc<ed25519::Pair> = Arc::new(Keyring::Bob.into());
+// 		let validators = vec![alice.public().0.into(), bob.public().0.into()];
+// 		let keys: Vec<&ed25519::Pair> = vec![&*alice, &*bob];
+// 		let dummy_runtime = ::tokio::runtime::Runtime::new().unwrap();
+// 		let block_factory = |service: &<Factory as service::ServiceFactory>::FullService| {
+// 			let block_id = BlockId::number(service.client().chain_info().best_number);
+// 			let parent_header = service.client().best_header(&block_id)
+// 				.expect("db error")
+// 				.expect("best block should exist");
 
-			futures::executor::block_on(
-				service.transaction_pool().maintain(
-					ChainEvent::NewBlock {
-						is_new_best: true,
-						id: block_id.clone(),
-						retracted: vec![],
-						header: parent_header,
-					},
-				)
-			);
+// 			futures::executor::block_on(
+// 				service.transaction_pool().maintain(
+// 					ChainEvent::NewBlock {
+// 						is_new_best: true,
+// 						id: block_id.clone(),
+// 						retracted: vec![],
+// 						header: parent_header,
+// 					},
+// 				)
+// 			);
 
-			let consensus_net = ConsensusNetwork::new(service.network(), service.client().clone());
-			let proposer_factory = consensus::ProposerFactory {
-				client: service.client().clone(),
-				transaction_pool: service.transaction_pool().clone(),
-				network: consensus_net,
-				force_delay: 0,
-				handle: dummy_runtime.executor(),
-			};
-			let (proposer, _, _) = proposer_factory.init(&parent_header, &validators, alice.clone()).unwrap();
-			let block = proposer.propose().expect("Error making test block");
-			BlockImportParams {
-				origin: BlockOrigin::File,
-				justification: Vec::new(),
-				internal_justification: Vec::new(),
-				finalized: false,
-				body: Some(block.extrinsics),
-				storage_changes: None,
-				header: block.header,
-				auxiliary: Vec::new(),
-			}
-		};
-		let extrinsic_factory =
-			|service: &SyncService<<Factory as service::ServiceFactory>::FullService>|
-		{
-			let payload = (
-				0,
-				Call::Balances(BalancesCall::transfer(RawAddress::Id(bob.public().0.into()), 69.into())),
-				Era::immortal(),
-				service.client().genesis_hash()
-			);
-			let signature = alice.sign(&payload.encode()).into();
-			let id = alice.public().0.into();
-			let xt = UncheckedExtrinsic {
-				signature: Some((RawAddress::Id(id), signature, payload.0, Era::immortal())),
-				function: payload.1,
-			}.encode();
-			let v: Vec<u8> = Decode::decode(&mut xt.as_slice()).unwrap();
-			OpaqueExtrinsic(v)
-		};
-		sc_service_test::sync(
-			sc_chain_spec::integration_test_config(),
-			|config| new_full(config),
-			|mut config| new_light(config),
-			block_factory,
-			extrinsic_factory,
-		);
-	}
+// 			let consensus_net = ConsensusNetwork::new(service.network(), service.client().clone());
+// 			let proposer_factory = consensus::ProposerFactory {
+// 				client: service.client().clone(),
+// 				transaction_pool: service.transaction_pool().clone(),
+// 				network: consensus_net,
+// 				force_delay: 0,
+// 				handle: dummy_runtime.executor(),
+// 			};
+// 			let (proposer, _, _) = proposer_factory.init(&parent_header, &validators, alice.clone()).unwrap();
+// 			let block = proposer.propose().expect("Error making test block");
+// 			BlockImportParams {
+// 				origin: BlockOrigin::File,
+// 				justification: Vec::new(),
+// 				internal_justification: Vec::new(),
+// 				finalized: false,
+// 				body: Some(block.extrinsics),
+// 				storage_changes: None,
+// 				header: block.header,
+// 				auxiliary: Vec::new(),
+// 			}
+// 		};
+// 		let extrinsic_factory =
+// 			|service: &SyncService<<Factory as service::ServiceFactory>::FullService>|
+// 		{
+// 			let payload = (
+// 				0,
+// 				Call::Balances(BalancesCall::transfer(RawAddress::Id(bob.public().0.into()), 69.into())),
+// 				Era::immortal(),
+// 				service.client().genesis_hash()
+// 			);
+// 			let signature = alice.sign(&payload.encode()).into();
+// 			let id = alice.public().0.into();
+// 			let xt = UncheckedExtrinsic {
+// 				signature: Some((RawAddress::Id(id), signature, payload.0, Era::immortal())),
+// 				function: payload.1,
+// 			}.encode();
+// 			let v: Vec<u8> = Decode::decode(&mut xt.as_slice()).unwrap();
+// 			OpaqueExtrinsic(v)
+// 		};
+// 		sc_service_test::sync(
+// 			sc_chain_spec::integration_test_config(),
+// 			|config| new_full(config),
+// 			|mut config| new_light(config),
+// 			block_factory,
+// 			extrinsic_factory,
+// 		);
+// 	}
 
-	#[test]
-	// It is "ignored", but the node-cli ignored tests are running on the CI.
-	// This can be run locally with `cargo test --release -p node-cli test_sync -- --ignored`.
-	#[ignore]
-	fn test_sync() {
-		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore = sc_keystore::Store::open(keystore_path.path(), None)
-			.expect("Creates keystore");
-		let alice = keystore.write().insert_ephemeral_from_seed::<sc_consensus_babe::AuthorityPair>("//Alice")
-			.expect("Creates authority pair");
+// 	#[test]
+// 	// It is "ignored", but the node-cli ignored tests are running on the CI.
+// 	// This can be run locally with `cargo test --release -p node-cli test_sync -- --ignored`.
+// 	#[ignore]
+// 	fn test_sync() {
+// 		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
+// 		let keystore = sc_keystore::Store::open(keystore_path.path(), None)
+// 			.expect("Creates keystore");
+// 		let alice = keystore.write().insert_ephemeral_from_seed::<sc_consensus_babe::AuthorityPair>("//Alice")
+// 			.expect("Creates authority pair");
 
-		let chain_spec = crate::chain_spec::tests::integration_test_config_with_single_authority();
+// 		let chain_spec = crate::chain_spec::tests::integration_test_config_with_single_authority();
 
-		// For the block factory
-		let mut slot_num = 1u64;
+// 		// For the block factory
+// 		let mut slot_num = 1u64;
 
-		// For the extrinsics factory
-		let bob = Arc::new(AccountKeyring::Bob.pair());
-		let charlie = Arc::new(AccountKeyring::Charlie.pair());
-		let mut index = 0;
+// 		// For the extrinsics factory
+// 		let bob = Arc::new(AccountKeyring::Bob.pair());
+// 		let charlie = Arc::new(AccountKeyring::Charlie.pair());
+// 		let mut index = 0;
 
-		sc_service_test::sync(
-			chain_spec,
-			|config| {
-				let mut setup_handles = None;
-				new_full!(config, |
-					block_import: &sc_consensus_babe::BabeBlockImport<Block, _, _>,
-					babe_link: &sc_consensus_babe::BabeLink<Block>,
-				| {
-					setup_handles = Some((block_import.clone(), babe_link.clone()));
-				}).map(move |(node, x)| (node, (x, setup_handles.unwrap())))
-			},
-			|config| new_light(config),
-			|service, &mut (ref inherent_data_providers, (ref mut block_import, ref babe_link))| {
-				let mut inherent_data = inherent_data_providers
-					.create_inherent_data()
-					.expect("Creates inherent data.");
-				inherent_data.replace_data(sp_finality_tracker::INHERENT_IDENTIFIER, &1u64);
+// 		sc_service_test::sync(
+// 			chain_spec,
+// 			|config| {
+// 				let mut setup_handles = None;
+// 				new_full!(config, |
+// 					block_import: &sc_consensus_babe::BabeBlockImport<Block, _, _>,
+// 					babe_link: &sc_consensus_babe::BabeLink<Block>,
+// 				| {
+// 					setup_handles = Some((block_import.clone(), babe_link.clone()));
+// 				}).map(move |(node, x)| (node, (x, setup_handles.unwrap())))
+// 			},
+// 			|config| new_light(config),
+// 			|service, &mut (ref inherent_data_providers, (ref mut block_import, ref babe_link))| {
+// 				let mut inherent_data = inherent_data_providers
+// 					.create_inherent_data()
+// 					.expect("Creates inherent data.");
+// 				inherent_data.replace_data(sp_finality_tracker::INHERENT_IDENTIFIER, &1u64);
 
-				let parent_id = BlockId::number(service.client().chain_info().best_number);
-				let parent_header = service.client().header(&parent_id).unwrap().unwrap();
-				let parent_hash = parent_header.hash();
-				let parent_number = *parent_header.number();
+// 				let parent_id = BlockId::number(service.client().chain_info().best_number);
+// 				let parent_header = service.client().header(&parent_id).unwrap().unwrap();
+// 				let parent_hash = parent_header.hash();
+// 				let parent_number = *parent_header.number();
 
-				futures::executor::block_on(
-					service.transaction_pool().maintain(
-						ChainEvent::NewBlock {
-							is_new_best: true,
-							id: parent_id.clone(),
-							retracted: vec![],
-							header: parent_header.clone(),
-						},
-					)
-				);
+// 				futures::executor::block_on(
+// 					service.transaction_pool().maintain(
+// 						ChainEvent::NewBlock {
+// 							is_new_best: true,
+// 							id: parent_id.clone(),
+// 							retracted: vec![],
+// 							header: parent_header.clone(),
+// 						},
+// 					)
+// 				);
 
-				let mut proposer_factory = sc_basic_authorship::ProposerFactory::new(
-					service.client(),
-					service.transaction_pool()
-				);
+// 				let mut proposer_factory = sc_basic_authorship::ProposerFactory::new(
+// 					service.client(),
+// 					service.transaction_pool()
+// 				);
 
-				let epoch_descriptor = babe_link.epoch_changes().lock().epoch_descriptor_for_child_of(
-					descendent_query(&*service.client()),
-					&parent_hash,
-					parent_number,
-					slot_num,
-				).unwrap().unwrap();
+// 				let epoch_descriptor = babe_link.epoch_changes().lock().epoch_descriptor_for_child_of(
+// 					descendent_query(&*service.client()),
+// 					&parent_hash,
+// 					parent_number,
+// 					slot_num,
+// 				).unwrap().unwrap();
 
-				let mut digest = Digest::<H256>::default();
+// 				let mut digest = Digest::<H256>::default();
 
-				// even though there's only one authority some slots might be empty,
-				// so we must keep trying the next slots until we can claim one.
-				let babe_pre_digest = loop {
-					inherent_data.replace_data(sp_timestamp::INHERENT_IDENTIFIER, &(slot_num * SLOT_DURATION));
-					if let Some(babe_pre_digest) = sc_consensus_babe::test_helpers::claim_slot(
-						slot_num,
-						&parent_header,
-						&*service.client(),
-						&keystore,
-						&babe_link,
-					) {
-						break babe_pre_digest;
-					}
+// 				// even though there's only one authority some slots might be empty,
+// 				// so we must keep trying the next slots until we can claim one.
+// 				let babe_pre_digest = loop {
+// 					inherent_data.replace_data(sp_timestamp::INHERENT_IDENTIFIER, &(slot_num * SLOT_DURATION));
+// 					if let Some(babe_pre_digest) = sc_consensus_babe::test_helpers::claim_slot(
+// 						slot_num,
+// 						&parent_header,
+// 						&*service.client(),
+// 						&keystore,
+// 						&babe_link,
+// 					) {
+// 						break babe_pre_digest;
+// 					}
 
-					slot_num += 1;
-				};
+// 					slot_num += 1;
+// 				};
 
-				digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(babe_pre_digest));
+// 				digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(babe_pre_digest));
 
-				let new_block = futures::executor::block_on(async move {
-					let proposer = proposer_factory.init(&parent_header).await;
-					proposer.unwrap().propose(
-						inherent_data,
-						digest,
-						std::time::Duration::from_secs(1),
-						RecordProof::Yes,
-					).await
-				}).expect("Error making test block").block;
+// 				let new_block = futures::executor::block_on(async move {
+// 					let proposer = proposer_factory.init(&parent_header).await;
+// 					proposer.unwrap().propose(
+// 						inherent_data,
+// 						digest,
+// 						std::time::Duration::from_secs(1),
+// 						RecordProof::Yes,
+// 					).await
+// 				}).expect("Error making test block").block;
 
-				let (new_header, new_body) = new_block.deconstruct();
-				let pre_hash = new_header.hash();
-				// sign the pre-sealed hash of the block and then
-				// add it to a digest item.
-				let to_sign = pre_hash.encode();
-				let signature = alice.sign(&to_sign[..]);
-				let item = <DigestItem as CompatibleDigestItem>::babe_seal(
-					signature.into(),
-				);
-				slot_num += 1;
+// 				let (new_header, new_body) = new_block.deconstruct();
+// 				let pre_hash = new_header.hash();
+// 				// sign the pre-sealed hash of the block and then
+// 				// add it to a digest item.
+// 				let to_sign = pre_hash.encode();
+// 				let signature = alice.sign(&to_sign[..]);
+// 				let item = <DigestItem as CompatibleDigestItem>::babe_seal(
+// 					signature.into(),
+// 				);
+// 				slot_num += 1;
 
-				let mut params = BlockImportParams::new(BlockOrigin::File, new_header);
-				params.post_digests.push(item);
-				params.body = Some(new_body);
-				params.intermediates.insert(
-					Cow::from(INTERMEDIATE_KEY),
-					Box::new(BabeIntermediate::<Block> { epoch_descriptor }) as Box<dyn Any>,
-				);
-				params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+// 				let mut params = BlockImportParams::new(BlockOrigin::File, new_header);
+// 				params.post_digests.push(item);
+// 				params.body = Some(new_body);
+// 				params.intermediates.insert(
+// 					Cow::from(INTERMEDIATE_KEY),
+// 					Box::new(BabeIntermediate::<Block> { epoch_descriptor }) as Box<dyn Any>,
+// 				);
+// 				params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
 
-				block_import.import_block(params, Default::default())
-					.expect("error importing test block");
-			},
-			|service, _| {
-				let amount = 5 * CENTS;
-				let to: Address = AccountPublic::from(bob.public()).into_account().into();
-				let from: Address = AccountPublic::from(charlie.public()).into_account().into();
-				let genesis_hash = service.client().block_hash(0).unwrap().unwrap();
-				let best_block_id = BlockId::number(service.client().chain_info().best_number);
-				let version = service.client().runtime_version_at(&best_block_id).unwrap().spec_version;
-				let signer = charlie.clone();
+// 				block_import.import_block(params, Default::default())
+// 					.expect("error importing test block");
+// 			},
+// 			|service, _| {
+// 				let amount = 5 * CENTS;
+// 				let to: Address = AccountPublic::from(bob.public()).into_account().into();
+// 				let from: Address = AccountPublic::from(charlie.public()).into_account().into();
+// 				let genesis_hash = service.client().block_hash(0).unwrap().unwrap();
+// 				let best_block_id = BlockId::number(service.client().chain_info().best_number);
+// 				let version = service.client().runtime_version_at(&best_block_id).unwrap().spec_version;
+// 				let signer = charlie.clone();
 
-				let function = Call::Balances(BalancesCall::transfer(to.into(), amount));
+// 				let function = Call::Balances(BalancesCall::transfer(to.into(), amount));
 
-				let check_version = frame_system::CheckVersion::new();
-				let check_genesis = frame_system::CheckGenesis::new();
-				let check_era = frame_system::CheckEra::from(Era::Immortal);
-				let check_nonce = frame_system::CheckNonce::from(index);
-				let check_weight = frame_system::CheckWeight::new();
-				let payment = pallet_transaction_payment::ChargeTransactionPayment::from(0);
-				let validate_grandpa_equivocation = pallet_grandpa::ValidateEquivocationReport::new();
-				let extra = (
-					check_version,
-					check_genesis,
-					check_era,
-					check_nonce,
-					check_weight,
-					payment,
-					validate_grandpa_equivocation,
-				);
-				let raw_payload = SignedPayload::from_raw(
-					function,
-					extra,
-					(version, genesis_hash, genesis_hash, (), (), (), ())
-				);
-				let signature = raw_payload.using_encoded(|payload|	{
-					signer.sign(payload)
-				});
-				let (function, extra, _) = raw_payload.deconstruct();
-				let xt = UncheckedExtrinsic::new_signed(
-					function,
-					from.into(),
-					signature.into(),
-					extra,
-				).encode();
-				let v: Vec<u8> = Decode::decode(&mut xt.as_slice()).unwrap();
+// 				let check_version = frame_system::CheckVersion::new();
+// 				let check_genesis = frame_system::CheckGenesis::new();
+// 				let check_era = frame_system::CheckEra::from(Era::Immortal);
+// 				let check_nonce = frame_system::CheckNonce::from(index);
+// 				let check_weight = frame_system::CheckWeight::new();
+// 				let payment = pallet_transaction_payment::ChargeTransactionPayment::from(0);
+// 				let validate_grandpa_equivocation = pallet_grandpa::ValidateEquivocationReport::new();
+// 				let extra = (
+// 					check_version,
+// 					check_genesis,
+// 					check_era,
+// 					check_nonce,
+// 					check_weight,
+// 					payment,
+// 					validate_grandpa_equivocation,
+// 				);
+// 				let raw_payload = SignedPayload::from_raw(
+// 					function,
+// 					extra,
+// 					(version, genesis_hash, genesis_hash, (), (), (), ())
+// 				);
+// 				let signature = raw_payload.using_encoded(|payload|	{
+// 					signer.sign(payload)
+// 				});
+// 				let (function, extra, _) = raw_payload.deconstruct();
+// 				let xt = UncheckedExtrinsic::new_signed(
+// 					function,
+// 					from.into(),
+// 					signature.into(),
+// 					extra,
+// 				).encode();
+// 				let v: Vec<u8> = Decode::decode(&mut xt.as_slice()).unwrap();
 
-				index += 1;
-				OpaqueExtrinsic(v)
-			},
-		);
-	}
+// 				index += 1;
+// 				OpaqueExtrinsic(v)
+// 			},
+// 		);
+// 	}
 
-	#[test]
-	#[ignore]
-	fn test_consensus() {
-		sc_service_test::consensus(
-			crate::chain_spec::tests::integration_test_config_with_two_authorities(),
-			|config| new_full(config),
-			|config| new_light(config),
-			vec![
-				"//Alice".into(),
-				"//Bob".into(),
-			],
-		)
-	}
-}
+// 	#[test]
+// 	#[ignore]
+// 	fn test_consensus() {
+// 		sc_service_test::consensus(
+// 			crate::chain_spec::tests::integration_test_config_with_two_authorities(),
+// 			|config| new_full(config),
+// 			|config| new_light(config),
+// 			vec![
+// 				"//Alice".into(),
+// 				"//Bob".into(),
+// 			],
+// 		)
+// 	}
+// }
