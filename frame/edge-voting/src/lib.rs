@@ -115,7 +115,7 @@ decl_module! {
 		/// A vote commitment is formatted using the native hash function. There
 		/// are currently no cryptoeconomic punishments against not revealing the
 		/// commitment.
-		#[weight = 200_000]
+		#[weight = 0]
 		pub fn commit(origin, vote_id: u64, commit: VoteOutcome) {
 			let _sender = ensure_signed(origin)?;
 			let mut record = <VoteRecords<T>>::get(vote_id).ok_or("Vote record does not exist")?;
@@ -133,7 +133,7 @@ decl_module! {
 		/// A function that reveals a vote commitment or serves as the general vote function.
 		///
 		/// There are currently no cryptoeconomic incentives for revealing commited votes.
-		#[weight = 1_000_000]
+		#[weight = 0]
 		pub fn reveal(origin, vote_id: u64, vote: Vec<VoteOutcome>, secret: Option<VoteOutcome>) {
 			let _sender = ensure_signed(origin)?;
 			let mut record = <VoteRecords<T>>::get(vote_id).ok_or("Vote record does not exist")?;

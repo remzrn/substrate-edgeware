@@ -129,6 +129,7 @@ std = [
 	"sp-runtime/std",
 	"sp-staking/std",
 	"pallet-staking/std",
+	"pallet-scheduler/std",
 	"sp-keyring",
 	# "sp-sandbox/std",
 	"sp-session/std",

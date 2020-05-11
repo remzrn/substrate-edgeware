@@ -739,7 +739,7 @@ impl FeeCalculator for FixedGasPrice {
 }
 
 parameter_types! {
-	pub const EVMModuleId: ModuleId = ModuleId(*b"py/evm_p");
+	pub const EVMModuleId: ModuleId = ModuleId(*b"py/evmpa");
 }
 
 

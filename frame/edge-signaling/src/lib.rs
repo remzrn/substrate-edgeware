@@ -60,14 +60,13 @@ decl_error! {
 	}
 }
 
-
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 		fn deposit_event() = default;
 
 		/// Creates a new signaling proposal.
-		#[weight = 200_000]
+		#[weight = 0]
 		pub fn create_proposal(
 			origin,
 			title: ProposalTitle,
@@ -116,7 +115,7 @@ decl_module! {
 
 		/// Advance a signaling proposal into the "voting" or "commit" stage.
 		/// Can only be performed by the original author of the proposal.
-		#[weight = 200_000]
+		#[weight = 0]
 		pub fn advance_proposal(origin, proposal_hash: T::Hash) {
 			let _sender = ensure_signed(origin)?;
 			let record = <ProposalOf<T>>::get(&proposal_hash).ok_or("Proposal does not exist")?;
