@@ -28,6 +28,7 @@ use sp_runtime::{
 };
 pub use crate::{Event, Module, RawEvent, Trait, GenesisConfig};
 use voting::{VoteOutcome, TallyType, VoteStage, VoteType};
+use frame_support::{dispatch::DispatchResult};
 
 impl_outer_origin! {
 	pub enum Origin for Test {}
