@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Edgeware-specific instructions
 
 This is a modification of the substrate main node to match Edgeware functionalities. To setup the building environment, one can follow the instructions for substrate listed below.
@@ -16,6 +17,9 @@ At the moment, the chain id is incorrect because of the different configuration 
 Below the original readme instructions for substrate:
 
 # Substrate &middot; [![GitHub license](https://img.shields.io/github/license/paritytech/substrate)](LICENSE) [![GitLab Status](https://gitlab.parity.io/parity/substrate/badges/master/pipeline.svg)](https://gitlab.parity.io/parity/substrate/pipelines) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.adoc)
+=======
+# Substrate &middot; [![GitHub license](https://img.shields.io/badge/license-GPL3%2FApache2-blue)](LICENSE) [![GitLab Status](https://gitlab.parity.io/parity/substrate/badges/master/pipeline.svg)](https://gitlab.parity.io/parity/substrate/pipelines) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.adoc)
+>>>>>>> b8c493d0af30674f7d4a2ad6f179b264a295b1e9
 
 <p align="center">
   <img src="/docs/media/sub.gif">

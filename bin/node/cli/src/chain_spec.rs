@@ -5,7 +5,7 @@
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or 
+// the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
 // This program is distributed in the hope that it will be useful,
@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, AuraConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SudoConfig, SystemConfig, WASM_BINARY, 
-	VestingConfig, SignalingConfig, TreasuryRewardConfig, EVMAccount, EVMConfig
+	VestingConfig, SignalingConfig, TreasuryRewardConfig, EVMConfig
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -37,7 +37,9 @@ use sp_consensus_aura::ed25519::AuthorityId as AuraId;
 use pallet_im_online::ed25519::{AuthorityId as ImOnlineId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_runtime::{Perbill, traits::{BlakeTwo256, Verify, IdentifyAccount, One}};
-use pallet_evm::{ConvertAccountId, HashTruncateConvertAccountId};
+use std::collections::BTreeMap;
+use pallet_evm::{ConvertAccountId, HashTruncateConvertAccountId, GenesisAccount};
+
 
 pub use node_primitives::{AccountId, Balance, Signature, BlockNumber};
 pub use node_runtime::GenesisConfig;
@@ -284,7 +286,25 @@ pub fn testnet_genesis(
 	let alice_evm_account_id = HashTruncateConvertAccountId::<BlakeTwo256>::convert_account_id(&alice_account_id);
 	let bob_account_id = get_account_id_from_seed::<sr25519::Public>("Bob");
 	let bob_evm_account_id = HashTruncateConvertAccountId::<BlakeTwo256>::convert_account_id(&bob_account_id);
-
+	let mut evm_accounts = BTreeMap::new();
+	evm_accounts.insert(
+		alice_evm_account_id,
+		GenesisAccount {
+			nonce: 0.into(),
+			balance: 1000000000.into(),
+			storage: BTreeMap::new(),
+			code: vec![],
+		}
+	);
+	evm_accounts.insert(
+		bob_evm_account_id,
+		GenesisAccount {
+			nonce: 1.into(),
+			balance: 2000000000.into(),
+			storage: BTreeMap::new(),
+			code: vec![],
+		}
+	);
 
 	GenesisConfig {
 		frame_system: Some(SystemConfig {
@@ -365,17 +385,7 @@ pub fn testnet_genesis(
 			vesting: vesting,
 		}),
 		pallet_evm: Some(EVMConfig {
-			accounts: vec![(
-				alice_evm_account_id,
-				EVMAccount {
-					nonce: 0.into(),
-					balance: 1000000000.into(),
-				}),(
-				bob_evm_account_id,
-				EVMAccount {
-					nonce: 1.into(),
-					balance: 2000000000.into(),
-				})],
+			accounts: evm_accounts,
 		}),
 	}
 }
@@ -553,6 +563,7 @@ pub fn mainnet_genesis(
 	vesting: Vec<(AccountId, BlockNumber, BlockNumber, Balance)>,
 ) -> GenesisConfig {
 	let enable_println = false;
+	let evm_accounts = BTreeMap::new();
 	GenesisConfig {
 		frame_system: Some(SystemConfig {
 			code: WASM_BINARY.to_vec(),
@@ -629,7 +640,7 @@ pub fn mainnet_genesis(
 			vesting: vesting,
 		}),
 		pallet_evm: Some(EVMConfig {
-			accounts: vec![],
+			accounts: evm_accounts,
 		}),
 	}
 }
