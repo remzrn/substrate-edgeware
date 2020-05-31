@@ -392,6 +392,7 @@ pub fn testnet_genesis(
 
 fn edgeware_testnet_config_genesis() -> GenesisConfig {
 	let allocation = get_lockdrop_participants_allocation().unwrap();
+	let existential_deposit = node_runtime::ExistentialDeposit::get();
 	let balances = allocation.balances.iter().map(|b| {
 		let balance = b.1.to_string().parse::<Balance>().unwrap();
 		return (
@@ -399,7 +400,7 @@ fn edgeware_testnet_config_genesis() -> GenesisConfig {
 			balance,
 		);
 	})
-	.filter(|b| b.1 > 1 * DOLLARS)
+	.filter(|b| b.1 > existential_deposit)
 	.collect();
 	let vesting = allocation.vesting.iter().map(|b| {
 		let vesting_balance = b.3.to_string().parse::<Balance>().unwrap();
@@ -410,7 +411,7 @@ fn edgeware_testnet_config_genesis() -> GenesisConfig {
 			vesting_balance,
 		);
 	})
-	.filter(|b| b.3 > 1 * DOLLARS)
+	.filter(|b| b.3 > existential_deposit)
 	.collect();
 
 	testnet_genesis(
@@ -649,6 +650,7 @@ pub fn mainnet_genesis(
 /// Mainnet config
 fn edgeware_mainnet_config_genesis() -> GenesisConfig {
 	let allocation = get_lockdrop_participants_allocation().unwrap();
+	let existential_deposit = node_runtime::ExistentialDeposit::get();
 	let balances = allocation.balances.iter().map(|b| {
 		let balance = b.1.to_string().parse::<Balance>().unwrap();
 		return (
@@ -656,7 +658,7 @@ fn edgeware_mainnet_config_genesis() -> GenesisConfig {
 			balance,
 		);
 	})
-	.filter(|b| b.1 > 1 * DOLLARS)
+	.filter(|b| b.1 > existential_deposit)
 	.collect();
 	let vesting = allocation.vesting.iter().map(|b| {
 		let vesting_balance = b.3.to_string().parse::<Balance>().unwrap();
@@ -667,7 +669,7 @@ fn edgeware_mainnet_config_genesis() -> GenesisConfig {
 			vesting_balance,
 		);
 	})
-	.filter(|b| b.3 > 1 * DOLLARS)
+	.filter(|b| b.3 > existential_deposit)
 	.collect();
 
 	mainnet_genesis(
