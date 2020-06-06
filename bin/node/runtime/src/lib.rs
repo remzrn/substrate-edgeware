@@ -212,7 +212,7 @@ impl pallet_aura::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const IndexDeposit: Balance = 1 * MILLICENTS;
+	pub const IndexDeposit: Balance = 1 * DOLLARS;
 }
 
 impl pallet_indices::Trait for Runtime {
@@ -223,7 +223,8 @@ impl pallet_indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * DOLLARS;
+	pub const ExistentialDeposit: Balance = 1 * MILLICENTS;
+	// pub const ExistentialDeposit: Balance = 1 * DOLLARS;
 }
 
 impl pallet_balances::Trait for Runtime {
@@ -314,7 +315,6 @@ pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
 		max_inflation: 0_100_000,
-		// nss: should be 50% or maybe 40%
 		// ideal_stake: 0_500_000,
 		ideal_stake: 0_800_000,
 		falloff: 0_050_000,
